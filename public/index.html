@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>智能组卷助手</title>
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<header class="topbar">
+  <div>
+    <h1>📝 智能组卷助手</h1>
+    <p class="sub">录入电子档试卷 → 识别题目 → 自由组卷 · 数据保存在本服务 ./data/</p>
+  </div>
+  <div class="health" id="health">检测中…</div>
+</header>
+
+<nav class="tabs">
+  <button data-tab="import" class="active">① 录入识别</button>
+  <button data-tab="bank">② 题库</button>
+  <button data-tab="compose">③ 组卷</button>
+  <button data-tab="papers">④ 我的试卷</button>
+</nav>
+
+<main>
+  <!-- 录入 -->
+  <section id="tab-import" class="tab active">
+    <div class="card">
+      <h2>录入试卷</h2>
+      <p class="hint">支持三种方式：① 粘贴文本 / 导入 .txt/.md　② 上传试卷图片（最多 6 张，需要配置 LLM 才识别图片）　③ PDF 请先截图或导出为图片再上传。</p>
+      <label>科目 <input id="imp-subject" value="数学" style="width:120px"></label>
+      <label>来源名称 <input id="imp-source" placeholder="如：2026期中数学卷" style="width:220px"></label>
+      <textarea id="imp-text" rows="10" placeholder="把试卷文字粘贴到这里，或点下方“导入文本文件”…"></textarea>
+      <div class="row">
+        <label class="btn ghost">📄 导入 .txt/.md <input type="file" id="imp-file" accept=".txt,.md" hidden></label>
+        <label class="btn ghost">🖼️ 上传图片（最多6张） <input type="file" id="imp-images" accept="image/*" multiple hidden></label>
+        <button class="btn" id="btn-sample">载入示例卷</button>
+        <button class="btn primary" id="btn-recognize-text">🔍 识别题目（文本）</button>
+        <button class="btn primary" id="btn-recognize-img">🔍 识别题目（图片）</button>
+      </div>
+      <div id="img-preview" class="img-preview"></div>
+      <p id="imp-status" class="status"></p>
+    </div>
+
+    <div class="card" id="result-card" hidden>
+      <h2>识别结果（可逐题修改，勾选后入库）</h2>
+      <p class="hint" id="result-note"></p>
+      <div class="row"><button class="btn primary" id="btn-save-selected">✅ 勾选的题目入库</button>
+      <button class="btn ghost" id="btn-select-all">全选</button></div>
+      <div id="result-list"></div>
+    </div>
+  </section>
+
+  <!-- 题库 -->
+  <section id="tab-bank" class="tab">
+    <div class="card">
+      <h2>题库 <span id="bank-count" class="muted"></span></h2>
+      <div class="row filters">
+        <select id="f-type"><option value="">全部题型</option><option>单选</option><option>多选</option><option>填空</option><option>判断</option><option>简答</option><option>计算</option><option>解答</option><option>应用</option></select>
+        <select id="f-diff"><option value="">全部难度</option><option>简单</option><option>中等</option><option>较难</option></select>
+        <input id="f-q" placeholder="关键词 / 知识点搜索…" style="flex:1;min-width:160px">
+        <button class="btn" id="btn-filter">筛选</button>
+        <button class="btn ghost" id="btn-add-manual">＋ 手动添加</button>
+      </div>
+      <div id="manual-form" class="manual" hidden>
+        <h3>手动添加 / 编辑题目</h3>
+        <input type="hidden" id="m-id">
+        <div class="row"><select id="m-type"><option>单选</option><option>多选</option><option>填空</option><option>判断</option><option>简答</option><option>计算</option><option>解答</option><option>应用</option></select>
+        <input id="m-subject" placeholder="科目" value="数学"><input id="m-score" type="number" value="5" style="width:80px" placeholder="分值">
+        <select id="m-diff"><option>简单</option><option selected>中等</option><option>较难</option></select>
+        <input id="m-kp" placeholder="知识点"></div>
+        <textarea id="m-stem" rows="3" placeholder="题干"></textarea>
+        <input id="m-options" placeholder="选项，用 | 分隔，如 A.3|B.4（选择题才填，格式：A.内容）">
+        <input id="m-answer" placeholder="答案（原文没有就留空，不要编）">
+        <div class="row"><button class="btn primary" id="btn-save-manual">保存题目</button><button class="btn ghost" id="btn-cancel-manual">取消</button></div>
+      </div>
+      <div id="bank-list"></div>
+    </div>
+  </section>
+
+  <!-- 组卷 -->
+  <section id="tab-compose" class="tab">
+    <div class="card">
+      <h2>组卷</h2>
+      <div class="row">
+        <input id="paper-title" placeholder="试卷标题，如：2026数学期中卷" style="flex:2;min-width:200px">
+        <input id="paper-subject" value="数学" style="width:100px">
+        <input id="paper-time" placeholder="考试时间，如 90分钟" style="width:140px">
+      </div>
+      <h3>智能抽题（按题型数量）</h3>
+      <div class="row" id="pick-counts">
+        <label>单选 <input type="number" data-type="单选" value="2" min="0"></label>
+        <label>填空 <input type="number" data-type="填空" value="1" min="0"></label>
+        <label>判断 <input type="number" data-type="判断" value="0" min="0"></label>
+        <label>简答 <input type="number" data-type="简答" value="0" min="0"></label>
+        <label>计算 <input type="number" data-type="计算" value="1" min="0"></label>
+      </div>
+      <div class="row">
+        <select id="pick-diff"><option value="">难度不限</option><option>简单</option><option>中等</option><option>较难</option></select>
+        <input id="pick-kp" placeholder="知识点筛选（可选）">
+        <button class="btn primary" id="btn-smart-pick">🎲 随机抽题加入草稿</button>
+        <button class="btn ghost" id="btn-clear-draft">清空草稿</button>
+      </div>
+      <p id="pick-status" class="status"></p>
+      <h3>手动挑题</h3>
+      <div id="manual-pick-list" class="pick-list"></div>
+      <h3>组卷草稿（总分：<span id="draft-total">0</span> 分）</h3>
+      <div id="draft-list"></div>
+      <button class="btn primary" id="btn-save-paper">💾 保存成卷</button>
+      <p id="compose-status" class="status"></p>
+    </div>
+  </section>
+
+  <!-- 我的试卷 -->
+  <section id="tab-papers" class="tab">
+    <div class="card">
+      <h2>我的试卷</h2>
+      <div id="papers-list"></div>
+      <div id="paper-view" hidden>
+        <div class="row">
+          <button class="btn" id="btn-view-student">学生版（无答案）</button>
+          <button class="btn" id="btn-view-teacher">教师版（含答案）</button>
+          <button class="btn" id="btn-download-txt">下载 .txt</button>
+          <button class="btn ghost" id="btn-copy-paper">复制全文</button>
+        </div>
+        <pre id="paper-text" class="paper-text"></pre>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">数据保存在服务器 ./data/（questions.json / papers.json）。Uppcoder 容器重建后数据会丢失，记得定期从题库/试卷页导出备份。</footer>
+<script src="./app.js"></script>
+</body>
+</html>
