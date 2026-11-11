@@ -1,0 +1,1 @@
+{"description":"智能组卷助手 — 录入电子档试卷，识别题目，自由组卷。零依赖 Node.js 服务，可部署到 Uppcoder Spark。","engines":{"node":">=20"},"license":"MIT","main":"server.js","name":"zujuan-uppcoder","scripts":{"start":"node server.js"},"version":"1.0.0"}
